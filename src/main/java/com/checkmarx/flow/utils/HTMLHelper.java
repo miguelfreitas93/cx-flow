@@ -7,14 +7,14 @@ import com.checkmarx.flow.constants.SCATicketingConstants;
 import com.checkmarx.flow.custom.IssueTracker;
 import com.checkmarx.flow.dto.ScanRequest;
 import com.checkmarx.sdk.config.Constants;
-import com.checkmarx.sdk.dto.Filter.Severity;
+import  com.checkmarx.sdk.dto.sast.Filter.Severity;
 import com.checkmarx.sdk.dto.ScanResults;
-import com.checkmarx.sdk.dto.ast.SCAResults;
+import com.checkmarx.sdk.dto.sca.SCAResults;
 import com.checkmarx.sdk.dto.cx.CxScanSummary;
-import com.cx.restclient.ast.dto.sca.report.Finding;
-import com.cx.restclient.ast.dto.sca.report.Package;
+import com.checkmarx.sdk.dto.sca.report.Finding;
+import com.checkmarx.sdk.dto.sca.report.Package;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.text.StringEscapeUtils;
 
@@ -95,7 +95,20 @@ public class HTMLHelper {
     }
 
     public static String getScanRequestIssueKeyWithDefaultProductValue(ScanRequest scanRequest, IssueTracker issueTracker, ScanResults.XIssue resultIssue) {
-        return scanRequest.getProduct().getProduct() + " " + issueTracker.getXIssueKey(resultIssue, scanRequest);
+        String xIssueKeyValue = issueTracker.getXIssueKey(resultIssue, scanRequest);
+        String productPrefix = scanRequest.getProduct().getProduct();
+        if (!xIssueKeyValue.startsWith(productPrefix)) {
+            xIssueKeyValue = productPrefix + " " + xIssueKeyValue;
+        }
+        return xIssueKeyValue;
+    }
+
+    public static String getScanRequestIssueKeyWithDefaultProductValue(ScanRequest scanRequest, String titleToConcat) {
+        String productPrefix = scanRequest.getProduct().getProduct();
+        if (!titleToConcat.startsWith(productPrefix)) {
+            titleToConcat = productPrefix + " " + titleToConcat;
+        }
+        return titleToConcat;
     }
 
     private static void addFlowSummarySection(ScanResults results, RepoProperties properties, StringBuilder body, ScanRequest request) {
@@ -218,7 +231,7 @@ public class HTMLHelper {
             scaDetailsMap.put("**Severity", any.getFinding().getSeverity().name());
             scaDetailsMap.put("**CVSS Score", String.valueOf(any.getFinding().getScore()));
             scaDetailsMap.put("**Publish Date", any.getFinding().getPublishDate());
-            scaDetailsMap.put("**Current Package Version", any.getVulnerabilityPackage().getVersion());
+            scaDetailsMap.put("**Current Package Version", ScanUtils.getCurrentPackageVersion(any.getVulnerabilityPackage().getId()));
             Optional.ofNullable(any.getFinding().getFixResolutionText())
                     .ifPresent(f -> scaDetailsMap.put("**Remediation Upgrade Recommendation", f)
 
@@ -353,7 +366,7 @@ public class HTMLHelper {
             scaDetailsMap.put("<b>Severity", any.getFinding().getSeverity().name());
             scaDetailsMap.put("<b>CVSS Score", String.valueOf(any.getFinding().getScore()));
             scaDetailsMap.put("<b>Publish Date", any.getFinding().getPublishDate());
-            scaDetailsMap.put("<b>Current Package Version", any.getVulnerabilityPackage().getVersion());
+            scaDetailsMap.put("<b>Current Package Version", ScanUtils.getCurrentPackageVersion(any.getVulnerabilityPackage().getId()));
             Optional.ofNullable(any.getFinding().getFixResolutionText())
                     .ifPresent(f -> scaDetailsMap.put("<b>Remediation Upgrade Recommendation", f)
 

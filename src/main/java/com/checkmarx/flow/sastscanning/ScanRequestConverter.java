@@ -12,7 +12,7 @@ import com.checkmarx.sdk.config.CxPropertiesBase;
 import com.checkmarx.sdk.dto.cx.CxScanParams;
 import com.checkmarx.sdk.dto.cx.CxScanSettings;
 import com.checkmarx.sdk.exception.CheckmarxException;
-import com.cx.restclient.ScannerClient;
+import com.checkmarx.sdk.service.scanner.ILegacyClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -34,7 +34,7 @@ public class ScanRequestConverter {
     private final BitBucketService bitBucketService;
     private final ADOService adoService;
     private final ShardSessionTracker sessionTracker;
-    private final ScannerClient scannerClient;
+    private final ILegacyClient scannerClient;
     private final CxPropertiesBase cxProperties;
     
     private static final String EMPTY_STRING = "";
@@ -109,7 +109,7 @@ public class ScanRequestConverter {
         return ownerId;
     }
 
-    private void setShardPropertiesIfExists(ScanRequest request, String fullTeamName) {
+    public void setShardPropertiesIfExists(ScanRequest request, String fullTeamName) {
         if (cxProperties.getEnableShardManager()) {
             ShardSession shard = sessionTracker.getShardSession();
             shard.setTeam(fullTeamName);
@@ -118,8 +118,8 @@ public class ScanRequestConverter {
     }
 
     private String determineOwnerId(ScanRequest request, String team) throws CheckmarxException {
-        return (request.getClientSec() != null)
-                ? scannerClient.getTeamIdByClientSecret(team, request.getClientSec())
+        return (request.getScannerApiSec() != null)
+                ? scannerClient.getTeamIdByClientSecret(team, request.getScannerApiSec())
                 : scannerClient.getTeamId(team);
     }
 
@@ -222,7 +222,7 @@ public class ScanRequestConverter {
                 .withFileExclude(request.getExcludeFiles())
                 .withFolderExclude(request.getExcludeFolders())
                 .withScanConfiguration(request.getScanConfiguration())
-                .withClientSecret(request.getClientSec());
+                .withClientSecret(request.getScannerApiSec());
 
         if (StringUtils.isNotEmpty(request.getBranch())) {
             params.withBranch(Constants.CX_BRANCH_PREFIX.concat(request.getBranch()));

@@ -6,7 +6,8 @@ import com.checkmarx.flow.config.external.CxGoConfigFromWebService;
 import com.checkmarx.flow.dto.ScanRequest;
 import com.checkmarx.flow.service.ConfigurationOverrider;
 import com.checkmarx.flow.service.ReposManagerService;
-import com.checkmarx.sdk.dto.CxConfig;
+
+import com.checkmarx.sdk.dto.sast.CxConfig;
 import io.cucumber.java.Before;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
@@ -52,7 +53,7 @@ public class CxIntegrationSteps {
 
     @Then("scanRequest is getting populated with cx-go new configuration")
     public void validateCxGoConfigurationOverride() {
-        Assert.assertEquals(CLIENT_SECRET, scanRequest.getClientSec());
+        Assert.assertEquals(CLIENT_SECRET, scanRequest.getScannerApiSec());
         Assert.assertEquals(TEAM, scanRequest.getTeam());
         Assert.assertTrue(scanRequest.getRepoUrlWithAuth().contains(SCM_ACCESS_TOKEN));
     }
@@ -63,7 +64,7 @@ public class CxIntegrationSteps {
 
     private CxGoConfigFromWebService getMockedCxGoConfig() {
         return CxGoConfigFromWebService.builder()
-                .cxgoSecret(CLIENT_SECRET)
+                .cxgoToken(CLIENT_SECRET)
                 .scmAccessToken(SCM_ACCESS_TOKEN)
                 .team(TEAM)
                 .build();
@@ -72,7 +73,7 @@ public class CxIntegrationSteps {
     private ScanRequest initScanRequest() {
         return ScanRequest.builder()
                 .repoType(ScanRequest.Repository.GITHUB)
-                .organizationName("organization-test")
+                .organizationId("organization-test")
                 .gitUrl("https://www.github.com")
                 .build();
     }

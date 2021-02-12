@@ -5,7 +5,11 @@ import com.checkmarx.flow.dto.BugTracker;
 import com.checkmarx.flow.dto.ScanRequest;
 import com.checkmarx.flow.service.SCAScanner;
 import com.checkmarx.flow.service.ScaConfigurationOverrider;
+import com.checkmarx.sdk.config.RestClientConfig;
 import com.checkmarx.sdk.config.ScaProperties;
+
+import com.checkmarx.sdk.dto.RemoteRepositoryInfo;
+import com.checkmarx.sdk.dto.sca.ScaConfig;
 import lombok.RequiredArgsConstructor;
 
 import java.util.Arrays;
@@ -21,7 +25,7 @@ public class ScaCommonSteps {
 
     public static void initSCAConfig(ScaProperties scaProperties) {
         scaProperties.setAppUrl("https://sca.scacheckmarx.com");
-        scaProperties.setApiUrl("https://api.scacheckmarx.com");
+        scaProperties.setApiUrl("https://api-sca.checkmarx.net");
         scaProperties.setAccessControlUrl("https://platform.checkmarx.net");
     }
 
@@ -45,5 +49,21 @@ public class ScaCommonSteps {
         return Arrays.stream(filters.split(","))
                 .map(String::trim)
                 .collect(Collectors.toList());
+    }
+
+    protected RestClientConfig createRestClientConfig(ScaProperties scaProperties, String projectName) {
+        ScaConfig scaConfig = new ScaConfig();
+        scaConfig.setTenant(scaProperties.getTenant());
+        scaConfig.setApiUrl(scaProperties.getApiUrl());
+        scaConfig.setUsername(scaProperties.getUsername());
+        scaConfig.setPassword(scaProperties.getPassword());
+        scaConfig.setAccessControlUrl(scaProperties.getAccessControlUrl());
+        scaConfig.setRemoteRepositoryInfo(new RemoteRepositoryInfo());
+
+        RestClientConfig restClientConfig = new RestClientConfig();
+        restClientConfig.setScaConfig(scaConfig);
+        restClientConfig.setProjectName(projectName);
+
+        return restClientConfig;
     }
 }

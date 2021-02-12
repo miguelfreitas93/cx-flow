@@ -23,14 +23,14 @@ import com.checkmarx.flow.dto.report.PullRequestReport;
 import com.checkmarx.flow.exception.GitHubClientRunTimeException;
 import com.checkmarx.flow.utils.HTMLHelper;
 import com.checkmarx.flow.utils.ScanUtils;
-import com.checkmarx.sdk.dto.CxConfig;
+import com.checkmarx.sdk.dto.sast.CxConfig;
 import com.checkmarx.sdk.dto.ScanResults;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
-import org.codehaus.jackson.JsonNode;
-import org.codehaus.jackson.map.ObjectMapper;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpEntity;
@@ -120,7 +120,7 @@ public class GitHubService extends RepoService {
             sendMergeComment(request, comment);
     }
 
-    private void updateComment(String baseUrl, String comment, ScanRequest scanRequest) {
+    public void updateComment(String baseUrl, String comment, ScanRequest scanRequest) {
         log.debug("Updating exisiting comment. url: {}", baseUrl);
         log.debug("Updated comment: {}" , comment);
         HttpEntity<?> httpEntity = new HttpEntity<>(RepoIssue.getJSONComment("body",comment).toString(), createAuthHeaders(scanRequest));
@@ -135,7 +135,7 @@ public class GitHubService extends RepoService {
         List<RepoComment> result = new ArrayList<>();
         ObjectMapper objMapper = new ObjectMapper();
         JsonNode root = objMapper.readTree(response.getBody());
-        Iterator<JsonNode> it = root.getElements();
+        Iterator<JsonNode> it = root.elements();
         int iteration = 0;
         while (it.hasNext() && iteration < maxNumberOfComments) {
             JsonNode commentNode = it.next();
@@ -153,12 +153,11 @@ public class GitHubService extends RepoService {
             try {
                 ConfigProvider configProvider = ConfigProvider.getInstance();
                 Repository repository = event.getRepository();
-                String ref = event.getRef();
 
                 // According to GitHub the recommended way to extract the branch name
                 // is by using the 'ref' parameter which is in the following format: 'refs/heads/<branch>'
                 configProvider.init(uid, new RepoReader(properties.getApiUrl(), repository.getOwner().getName(),
-                        repository.getName(), ref.substring(ref.lastIndexOf('/') + 1),
+                        repository.getName(), ScanUtils.getBranchFromRef(event.getRef()),
                         properties.getToken(), SourceProviderType.GITHUB));
             } catch (ConfigurationException e) {
                 log.warn("Failed to init config provider with the following error: {}", e.getMessage());
@@ -190,7 +189,7 @@ public class GitHubService extends RepoService {
 
 
     private RepoComment createRepoComment(JsonNode commentNode)  {
-        String commentBody = commentNode.path("body").getTextValue();
+        String commentBody = commentNode.path("body").textValue();
         long id = commentNode.path("id").asLong();
         String commentUrl = commentNode.path(("url")).asText();
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
@@ -201,33 +200,12 @@ public class GitHubService extends RepoService {
             return new RepoComment(id, commentBody, commentUrl, sdf.parse(createdStr), sdf.parse(updatedStr));
         }
         catch (ParseException pe) {
-            throw new GitHubClientRunTimeException("Error parsing github pull request created or updted date", pe);
+            throw new GitHubClientRunTimeException("Error parsing github pull request created or updated date", pe);
         }
     }
 
-    public void sendMergeComment(ScanRequest request, String comment) {
-        try {
-            RepoComment commentToUpdate = PullRequestCommentsHelper.getCommentToUpdate(getComments(request), comment);
-            if (commentToUpdate !=  null) {
-                log.debug("Got candidate comment to update. comment: {}", commentToUpdate.getComment());
-                if (!PullRequestCommentsHelper.shouldUpdateComment(comment, commentToUpdate.getComment())) {
-                    log.debug("sendMergeComment: Comment should not be updated");
-                    return;
-                }
-                log.debug("sendMergeComment: Going to update GitHub pull request comment");
-                updateComment(commentToUpdate.getCommentUrl(), comment, request);
-            } else {
-                log.debug("sendMergeComment: Going to create a new GitHub pull request comment");
-                addComment(request, comment);
-            }
-        }
-        catch (Exception e) {
-            // We "swallow" the exception so that the flow will not be terminated because of errors in GIT comments
-            log.error("Error while adding or updating repo pull request comment", e);
-        }
-    }
-
-    private void addComment(ScanRequest request, String comment) {
+    @Override
+    public void addComment(ScanRequest request, String comment) {
         log.debug("Adding a new comment");
         HttpEntity<?> httpEntity = new HttpEntity<>(RepoIssue.getJSONComment("body",comment).toString(), createAuthHeaders(request));
         restTemplate.exchange(request.getMergeNoteUri(), HttpMethod.POST, httpEntity, String.class);

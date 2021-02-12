@@ -2,6 +2,7 @@ package com.checkmarx.flow.cucumber.integration.ast.scans;
 
 import com.checkmarx.flow.CxFlowApplication;
 import com.checkmarx.flow.config.FlowProperties;
+import com.checkmarx.flow.config.JiraProperties;
 import com.checkmarx.flow.cucumber.integration.sca_scanner.ScaCommonSteps;
 import com.checkmarx.flow.dto.BugTracker;
 import com.checkmarx.flow.dto.ScanRequest;
@@ -9,9 +10,9 @@ import com.checkmarx.flow.service.*;
 import com.checkmarx.sdk.config.AstProperties;
 import com.checkmarx.sdk.config.CxProperties;
 import com.checkmarx.sdk.config.ScaProperties;
-import com.checkmarx.sdk.dto.CxConfig;
+import com.checkmarx.sdk.dto.sast.CxConfig;
 import com.checkmarx.sdk.dto.ScanResults;
-import com.cx.restclient.ast.dto.sast.report.Finding;
+import com.checkmarx.sdk.dto.ast.report.Finding;
 import io.cucumber.java.After;
 import io.cucumber.java.Before;
 import io.cucumber.java.en.And;
@@ -56,6 +57,7 @@ public class AstRemoteRepoScanSteps {
 
     private final CxProperties cxProperties;
     private final FlowProperties flowProperties;
+    private final JiraProperties jiraProperties;
     private final AstProperties astProperties;
     private final ScaProperties scaProperties;
     private final ConfigurationOverrider configOverrider;
@@ -189,12 +191,12 @@ public class AstRemoteRepoScanSteps {
     
     @And("each finding will contain AST populated description field")
     public void validateAdditionalFields(){
-        assertTrue("AST description field is empty", StringUtils.isNotEmpty(scanResults.getAstResults().getResults().getFindings().get(0).getDescription()));
+        assertTrue("AST description field is empty", StringUtils.isNotEmpty(scanResults.getAstResults().getFindings().get(0).getDescription()));
     }
 
     @And("finding with the same queryId will have the same description and there will be a unique finding description for each queryId")
     public void validateDescriptions() {
-        validateDescriptions(scanResults.getAstResults().getResults().getFindings());
+        validateDescriptions(scanResults.getAstResults().getFindings());
     }
 
     private void validateDescriptions(List<Finding> findings) {
@@ -259,7 +261,7 @@ public class AstRemoteRepoScanSteps {
         }
         if(isAstEnabled) {
             assertNotNull("AST results are null.", scanResults.getAstResults());
-            assertTrue("AST scan ID is empty", StringUtils.isNotEmpty(scanResults.getAstResults().getResults().getScanId()));
+            assertTrue("AST scan ID is empty", StringUtils.isNotEmpty(scanResults.getAstResults().getScanId()));
         }
      }
 
@@ -269,7 +271,7 @@ public class AstRemoteRepoScanSteps {
             validateFindingCount(scaFindings, scanResults.getScaResults().getFindings(), "SCA");
         }
         if (isAstEnabled) {
-            validateFindingCount(astFindings, scanResults.getAstResults().getResults().getFindings(), "AST");
+            validateFindingCount(astFindings, scanResults.getAstResults().getFindings(), "AST");
         }
     }
 
@@ -287,7 +289,8 @@ public class AstRemoteRepoScanSteps {
         CxProperties cxProperties = new CxProperties();
         ExternalScriptService scriptService = new ExternalScriptService();
         CxScannerService cxScannerService = new CxScannerService(cxProperties,null, null, null, null );
-        HelperService helperService = new HelperService(flowProperties, cxScannerService, scriptService);
+        HelperService helperService = new HelperService(flowProperties, cxScannerService,
+                                                        jiraProperties, scriptService);
      
         ProjectNameGenerator projectNameGenerator = new ProjectNameGenerator(helperService, cxScannerService);
         FlowService flowService = new FlowService(new ArrayList<>(), projectNameGenerator, resultsServiceMock);

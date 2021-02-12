@@ -17,10 +17,10 @@ import com.checkmarx.flow.sastscanning.ScanRequestConverter;
 import com.checkmarx.flow.service.*;
 import com.checkmarx.sdk.config.Constants;
 import com.checkmarx.sdk.config.CxProperties;
-import com.checkmarx.sdk.dto.CxConfig;
+import com.checkmarx.sdk.dto.sast.CxConfig;
 import com.checkmarx.sdk.dto.ScanResults;
 import com.checkmarx.sdk.exception.CheckmarxException;
-import com.checkmarx.sdk.service.CxClient;
+import com.checkmarx.sdk.service.scanner.CxClient;
 import com.checkmarx.sdk.service.CxService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -107,7 +107,10 @@ public class DeleteBranchSteps {
         this.resultsServiceMock = mock(ResultsService.class);
         this.cxClientMock = mock(CxService.class);
         CxScannerService  cxScannerService = new CxScannerService(cxProperties, null, flowProperties,cxClientMock, null);
-        this.helperService = mock(HelperService.class, Mockito.withSettings().useConstructor(flowProperties, cxScannerService, null));
+        this.helperService = mock(HelperService.class,
+                                  Mockito.withSettings().useConstructor(flowProperties,
+                                                                        cxScannerService, null,
+                                                                        null));
         this.scmConfigOverrider = scmConfigOverrider;
         this.gitAuthUrlGenerator = gitAuthUrlGenerator;
     }

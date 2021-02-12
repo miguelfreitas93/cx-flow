@@ -14,21 +14,21 @@ import com.checkmarx.flow.service.*;
 
 import com.checkmarx.sdk.config.Constants;
 import com.checkmarx.sdk.config.CxProperties;
-import com.checkmarx.sdk.dto.Filter;
+import com.checkmarx.sdk.dto.ast.*;
+import com.checkmarx.sdk.dto.ast.report.AstSummaryResults;
+import com.checkmarx.sdk.dto.ast.report.StatusCounter;
+import com.checkmarx.sdk.dto.sast.Filter;
 import com.checkmarx.sdk.dto.ScanResults;
-import com.checkmarx.sdk.dto.ast.ASTResults;
-import com.checkmarx.sdk.dto.ast.SCAResults;
-import com.checkmarx.sdk.dto.ast.Summary;
+import com.checkmarx.sdk.dto.sca.SCAResults;
+import com.checkmarx.sdk.dto.sca.Summary;
 import com.checkmarx.sdk.exception.CheckmarxException;
-import com.checkmarx.sdk.service.CxClient;
+import com.checkmarx.sdk.service.scanner.CxClient;
 import com.checkmarx.sdk.service.CxService;
 import com.checkmarx.test.flow.config.CxFlowMocksConfig;
-import com.cx.restclient.ast.dto.sast.AstSastResults;
 
-import com.cx.restclient.ast.dto.sast.report.AstSastSummaryResults;
-import com.cx.restclient.ast.dto.sast.report.FindingNode;
-import com.cx.restclient.ast.dto.sast.report.StatusCounter;
-import com.cx.restclient.dto.scansummary.Severity;
+import com.checkmarx.sdk.dto.ast.report.FindingNode;
+
+import com.checkmarx.sdk.dto.scansummary.Severity;
 import io.cucumber.java.Before;
 import io.cucumber.java.en.And;
 import io.cucumber.java.en.Then;
@@ -40,8 +40,7 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 import org.springframework.boot.test.context.SpringBootTest;
-import com.cx.restclient.ast.dto.sast.report.Finding;
-
+import com.checkmarx.sdk.dto.ast.report.Finding;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -151,11 +150,10 @@ public class GitHubCommentsASTSteps {
     private ScanResults createFakeASTScanResults(int highCount, int mediumCount, int lowCount) {
         ScanResults result = new ScanResults();
         ASTResults astResults = new ASTResults();
-        AstSastResults astSastResults = new AstSastResults();
 
         List<Finding> findings = new LinkedList<>();
 
-        astSastResults.setScanId("" + SCAN_ID);
+        astResults.setScanId("" + SCAN_ID);
 
         boolean addNodes = false;
         if(highCount + mediumCount + lowCount > 0){
@@ -166,18 +164,17 @@ public class GitHubCommentsASTSteps {
         addFinding(mediumCount, findingCounts, findings, Severity.MEDIUM.name(), addNodes, "Hardcoded_password_in_Connection_String");
         addFinding(lowCount, findingCounts, findings, Severity.LOW.name(),addNodes, "Open_Redirect");
         
-        astSastResults.setFindings(findings);
-        astResults.setResults(astSastResults);
+        astResults.setFindings(findings);
         result.setAstResults(astResults);
         
-        AstSastSummaryResults summary = new AstSastSummaryResults();
+        AstSummaryResults summary = new AstSummaryResults();
         summary.setStatusCounters(findingCounts);
         summary.setHighVulnerabilityCount(highCount);
         summary.setMediumVulnerabilityCount(mediumCount);
         summary.setLowVulnerabilityCount(lowCount);
 
-        astSastResults.setWebReportLink(AST_WEB_REPORT_LINK);
-        astSastResults.setSummary(summary);
+        astResults.setWebReportLink(AST_WEB_REPORT_LINK);
+        astResults.setSummary(summary);
         Map<String, Object> details = new HashMap<>();
         details.put(Constants.SUMMARY_KEY, new HashMap<>());
         result.setAdditionalDetails(details);
@@ -192,7 +189,7 @@ public class GitHubCommentsASTSteps {
 
         scaResults.setScanId("" + SCAN_ID);
 
-        List<com.cx.restclient.ast.dto.sca.report.Finding> findings = new LinkedList<>();
+        List<com.checkmarx.sdk.dto.sca.report.Finding> findings = new LinkedList<>();
         addFinding(high, findingCounts, findings, Severity.HIGH, Filter.Severity.HIGH);
         addFinding(medium, findingCounts, findings, Severity.MEDIUM, Filter.Severity.MEDIUM);
         addFinding(low, findingCounts, findings, Severity.LOW, Filter.Severity.LOW);
@@ -211,9 +208,9 @@ public class GitHubCommentsASTSteps {
                 .build();
     }
 
-    private static void addFinding(Integer countFindingsPerSeverity, Map<Filter.Severity, Integer> findingCounts, List<com.cx.restclient.ast.dto.sca.report.Finding> findings, Severity severity, Filter.Severity filterSeverity) {
+    private static void addFinding(Integer countFindingsPerSeverity, Map<Filter.Severity, Integer> findingCounts, List<com.checkmarx.sdk.dto.sca.report.Finding> findings, Severity severity, Filter.Severity filterSeverity) {
         for ( int i=0; i <countFindingsPerSeverity; i++) {
-            com.cx.restclient.ast.dto.sca.report.Finding fnd = new com.cx.restclient.ast.dto.sca.report.Finding();
+            com.checkmarx.sdk.dto.sca.report.Finding fnd = new com.checkmarx.sdk.dto.sca.report.Finding();
             fnd.setSeverity(severity);
             fnd.setPackageId("");
             findings.add(fnd);
@@ -222,7 +219,7 @@ public class GitHubCommentsASTSteps {
         findingCounts.put(filterSeverity, countFindingsPerSeverity);
     }
     
-    private  void addFinding(Integer countFindingsPerSeverity, List<StatusCounter> findingCounts, List<Finding> findings, String severity,boolean addNodes, String  queryName) {
+    private  void addFinding(Integer countFindingsPerSeverity, List<StatusCounter> findingCounts, List<Finding> findings, String severity, boolean addNodes, String  queryName) {
         for ( int i=0; i <countFindingsPerSeverity; i++) {
             Finding fnd = new Finding();
             fnd.setSeverity(severity);
@@ -400,13 +397,13 @@ public class GitHubCommentsASTSteps {
         if (scannerType.equalsIgnoreCase(AST_SCA)) {
             Assert.assertTrue(PullRequestCommentsHelper.isSastAndScaComment(comment) );
 
-            Assert.assertEquals(scanResultsToInject.getAstResults().getResults().getSummary().getHighVulnerabilityCount()+
+            Assert.assertEquals(scanResultsToInject.getAstResults().getSummary().getHighVulnerabilityCount()+
                     scanResultsToInject.getScaResults().getSummary().getFindingCounts().get(Filter.Severity.HIGH), actaulHighCounter);
-            Assert.assertEquals(scanResultsToInject.getAstResults().getResults().getSummary().getMediumVulnerabilityCount() +
+            Assert.assertEquals(scanResultsToInject.getAstResults().getSummary().getMediumVulnerabilityCount() +
                     scanResultsToInject.getScaResults().getSummary().getFindingCounts().get(Filter.Severity.MEDIUM), actualMediumCounter);
             
             // add 1 to the results 
-            Assert.assertEquals(scanResultsToInject.getAstResults().getResults().getSummary().getLowVulnerabilityCount()+ 1 +
+            Assert.assertEquals(scanResultsToInject.getAstResults().getSummary().getLowVulnerabilityCount()+ 1 +
                     scanResultsToInject.getScaResults().getSummary().getFindingCounts().get(Filter.Severity.LOW), actaulLowCounter);
 
         }
@@ -414,9 +411,9 @@ public class GitHubCommentsASTSteps {
             
             Assert.assertTrue(PullRequestCommentsHelper.isSastFindingsComment(comment));
 
-            int expectedHigh = getExpectedResults(scanResultsToInject.getAstResults().getResults().getSummary().getHighVulnerabilityCount());
-            int expectedMedium = getExpectedResults(scanResultsToInject.getAstResults().getResults().getSummary().getMediumVulnerabilityCount());
-            int expectedLow = getExpectedResults(scanResultsToInject.getAstResults().getResults().getSummary().getLowVulnerabilityCount());
+            int expectedHigh = getExpectedResults(scanResultsToInject.getAstResults().getSummary().getHighVulnerabilityCount());
+            int expectedMedium = getExpectedResults(scanResultsToInject.getAstResults().getSummary().getMediumVulnerabilityCount());
+            int expectedLow = getExpectedResults(scanResultsToInject.getAstResults().getSummary().getLowVulnerabilityCount());
             
             Assert.assertEquals(expectedHigh  , actaulHighCounter);
             Assert.assertEquals(expectedMedium  , actualMediumCounter);

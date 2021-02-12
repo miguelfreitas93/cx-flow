@@ -131,6 +131,7 @@ cx-flow:
      username: xxx
      password: xxx
      enabled: true
+  zip-exclude: \.git/.*, .*\.png
 
 checkmarx:
   username: xxx
@@ -320,7 +321,7 @@ Refer to the sample configuration above for the entire yaml structure.
 | filter-severity |     | No       | Yes    | Yes           | The severity can be filtered during feedback (**High**, **Medium**, **Low**, **Informational**).  If no value is provided, all severity levels are applicable. |
 | filter-category |     | No       | Yes    | Yes           | The list of vulnerability types to be included with the results (**Stored_XSS**, **SQL_Injection**) as defined within Checkmarx.  If no value is provided, all categories are applicable. |
 | filter-cwe      |     | No       | Yes    | Yes           | The list of CWEs to be included with the results (**79**, **89**).  If no value is provided, all categories are applicable. |
-| filter-state    |     | No       | Yes    | Yes           | The available options are **Urgent** and **Confirmed**.  This only allows for filtering the results that have been confirmed/validated within Checkmarx. |
+| filter-state    |     | No       | Yes    | Yes           | The available options are **To Verify**, **Confirmed**, **Urgent** and **Proposed Not Exploitable**.  This only allows for filtering the results that have been confirmed/validated within Checkmarx. |
 | mitre-url       |     | No       | Yes    | Yes           | Provides a link in the issue body for **Jira**, **GitLab Issues** and **GitHub Issues** to help guide developers.  The link is not provided, if left empty or omitted. |
 | wiki-url        |     | No       | Yes    | Yes           | Provides a link in the issue body for **Jira**, **GitLab Issues** and **GitHub Issues** associated with internal program references (program/assessment methodology, remediation guidance, etc).  The link is not provided, if left empty or omitted. |
 | codebash-url    |     | No       | Yes    | Yes           | Provides a link in the issue body for **Jira**, **GitLab Issues** and **GitHub Issues**  associated with training. The link is titled **'Training'** and is not provided, if left empty or omitted. |
@@ -331,6 +332,7 @@ Refer to the sample configuration above for the entire yaml structure.
 | http-connection-timeout | 30000 | No* | Yes | Yes         | Http client connection timeout setting.  Not applied for the Jira client. |
 | http-read-timeout | 120000      | No* | Yes | Yes         | Http client read timeout setting.  Not applied for the Jira client. |
 | mail              | enabled:false | No* | Yes | Yes       | SMTP configuration - host, port, username, password, enabled (false by default).  When enabled, email is a valid feedback channel, and an html template is used to provide result details. During WebHook execution, the email is sent to the list of committers in the push event.
+| zip-exclude       |               |No   |No   |Yes        | Comma-separated list of regexes. Instructs CxFlow to exclude specific files when it creates a zip archive. See the details [here](Excluding-Files-from-Zip-Archive.md).|
 | auto-profile      | false         | No  | Yes | No        | During WebHook execution, language stats and files are gathered to help determine an appropriate preset to use.  By default, the profiling initially occurs only when a project is new/created for the first time.  Refer to [CxFlow Automated Code](https://checkmarx.atlassian.net/wiki/spaces/PTS/pages/1345586126/CxFlow+Automated+Code+Profiling) Profiling for details.
 | always-profile    | false         | No  | Yes | No        | This enforces the auto-profile execution for each scan request regardless of whether the project is new or not. |
 | profiling-depth   | 1             | No  | Yes | No        | The folder depth that is inspected for file names during the profiling process, which means looking for specific file references, i.e. web.xml/Web.config |
@@ -357,6 +359,9 @@ Refer to the sample configuration above for the entire yaml structure.
 | team-script |            | No | Yes | Yes | A **groovy** script that can be used for deciding the team to use in Checkmarx.  This is to allow for any client custom lookups and other integrations.  The script is passed a "request" object, which is of type **com.checkmarx.flow.dto.ScanRequest**, and must return **String** representing the team path to be used. If this script is provided, it is used for all decisions associated with determining project name.
 | incremental-threshold | 7 | No* | Yes | Yes (scan only) | The maximum number of days before a full scan is required |
 | offline | false | No* | No | Yes (parse only) | Use Table this only when parsing Checkmarx XML, this flag removes the dependency from Checkmarx APIs when parsing results.  This skips retrieving the issue description from Checkmarx. |
+| exclude-files     |                | No  | Yes | Yes      | Files to be excluded from Scan                                            |
+| exclude-folders   |                | No  | Yes | Yes      | Folders to be excluded from Scan                                          |
+
 
 No* = Default is applied
 
@@ -381,8 +386,8 @@ checkmarx:
    portal-url: ${checkmarx.base-url}/cxwebinterface/Portal/CxWebService.asmx
    #project-script: D:\\tmp\CxProject.groovy
    #team-script: D:\\tmp\CxTeam.groovy
-   #exclude-files:
-   #exclude-folders:
+   exclude-files: "*.tst,*.json"
+   exclude-folders: ".git/,test/"
 ```
 **Note:**
 * Make sure to include **version: 9.0** (or higher) and **scope:  access_control_api sast_rest_api**
@@ -587,8 +592,8 @@ The sample below illustrates an override configuration in JSON format.  It has s
    "branches": ["develop", "master"],
    "incremental": true,
    "scan_preset": "Checkmarx Default",
-   "exclude_folders": "tmp/",
-   "exclude_files": "*.tst",
+   "exclude_folders": "tmp/,test/",
+   "exclude_files": "*.tst,*.tmp",
    "emails": ["xxxx@checkmarx.com"],
    "filters" : {
      "severity": ["High", "Medium"],

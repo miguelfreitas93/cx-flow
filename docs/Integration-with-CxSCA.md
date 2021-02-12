@@ -2,8 +2,11 @@
 * [Bug-Trackers](#bug)
 * [Filters](#filters)
 * [Thresholds](#thresholds)
+* [Policy Management](#policyManagement)
 * [Configuration As Code](#configurationascode)
 * [SCA Scans From Command Line](#commandline)
+* [SCA ZIP Folder Scan](#zipFolderScan)
+* [SCA Project Team Assignment](#scaProjectTeamAssignment)
 
 ## <a name="configuration">Configuration</a>
 CxSCA scans can be triggered based on WebHooks using CxFlow. 
@@ -115,6 +118,19 @@ Cx-Flow uses the thresholds to ease its (no) tolerance of findings.
 <br/>
 [[/Images/SCA7.png|Example of Pull Request Failure]]
 
+## <a name="policyManagement">Policy Management</a>
+SCA supports with policy management control.
+Each policy can be customized by defining number of custom rules and conditions in which, if getting violated, can break a build.
+On the creation process or after it, a policy can be defined with 'Break build' flag or not.
+
+[[/Images/SCA-policy-creation.png|Example of Policy creation dashboard]]
+
+When performing a scan, if a defined policy is getting violated, Cx-Flow will fail the pull request and it will be marked as failed.
+* Violated policy occurs when at least one rule condition is getting violated AND when policy 'Break Build' flag in on.
+* In case of a CLI scan which violated a policy: Cx-Flow will fail with exit code 10.
+* If current scan violated any active SCA thresholds and also violated a policy, policy break build has the top priority.
+
+
 ## <a name="configurationascode">Configuration As Code</a>
 CxFlow supports configuration as code for CxSAST and CxSCA scans.
 <br/>Available overrides for SCA properties:
@@ -172,3 +188,27 @@ In order to open SCA security tickets, set the bug tracker in cxflow app.yml fil
   * -scan --app=MyApp --cx-team="my-team" --cx-project="project" --f="/Users/myProjects/project"
 * get latest scan results:
   * --project --app=MyApp --cx-team="my-team" --cx-project="project" ([use 'project' command](https://github.com/checkmarx-ltd/cx-flow/blob/develop/src/main/java/com/checkmarx/flow/dto/ScanRequest.java))
+
+
+## <a name="zipFolderScan">SCA ZIP folder scan</a>
+In order to change the default CxFlow SCA scan behaviour and to perform a SCA ZIP scan, the next configuration property should be added underneath the sca configuration section:
+```
+enabledZipScan: true
+```
+Additional configuration in SCA zip scan flow - Include source files
+* Default value set to false, In order to change the default CxFlow SCA zip scan behaviour, the next configuration property should be added underneath the sca configuration section:
+```
+includeSources: true
+```
+
+## <a name="scaProjectTeamAssignment">SCA project team assignment</a>
+SCA project team assignment with CxFlow is performing on the SCA project creation stage. In order to set a project team, the next configuration property should be added underneath the sca configuration section:
+```
+team-for-new-projects: /team
+```
+Or within a tree hierarchy:
+```
+team-for-new-projects: /MainTeam/SubTeam
+```
+* In order to declare a team within a tree hierarchy, make sure to use the forward slash ('/').
+* Declaring not existing team or team path will be resulted with 400 BAD REQUEST error.

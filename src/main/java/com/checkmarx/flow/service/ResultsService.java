@@ -14,13 +14,13 @@ import com.checkmarx.flow.exception.MachinaException;
 import com.checkmarx.flow.exception.MachinaRuntimeException;
 import com.checkmarx.flow.utils.ScanUtils;
 import com.checkmarx.sdk.config.Constants;
-import com.checkmarx.sdk.dto.Filter;
+import com.checkmarx.sdk.dto.sast.Filter;
 import com.checkmarx.sdk.dto.ScanResults;
 import com.checkmarx.sdk.dto.cx.CxProject;
 import com.checkmarx.sdk.dto.filtering.EngineFilterConfiguration;
 import com.checkmarx.sdk.dto.filtering.FilterConfiguration;
 import com.checkmarx.sdk.exception.CheckmarxException;
-import com.checkmarx.sdk.service.CxOsaClient;
+import com.checkmarx.sdk.service.scanner.CxOsaClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -55,7 +55,7 @@ public class ResultsService {
     public CompletableFuture<ScanResults> processScanResultsAsync(ScanRequest request, Integer projectId,
                                                                   Integer scanId, String osaScanId, FilterConfiguration filterConfiguration) throws MachinaException {
         try {
-                    
+
             CompletableFuture<ScanResults> future = new CompletableFuture<>();
             //TODO async these, and join and merge after
             ScanResults results = cxScannerService.getScannerClient().getReportContentByScanId(scanId, filterConfiguration);
@@ -122,7 +122,7 @@ public class ResultsService {
 
 
     public void processResults(ScanRequest request, ScanResults results, ScanDetails scanDetails) throws MachinaException {
-        
+
         scanDetails = Optional.ofNullable(scanDetails).orElseGet(ScanDetails::new);
         if (Boolean.FALSE.equals(cxScannerService.getProperties().getOffline())) {
             getCxFields(request, results);
@@ -185,7 +185,7 @@ public class ResultsService {
             log.info(String.format("request : %s", request));
             log.info(String.format("results : %s", results));
             log.info(String.format("projectId : %s", projectId));
-            log.info("Process completed Succesfully");
+            log.info("Process completed Successfully");
         }
     }
 
@@ -371,4 +371,3 @@ public class ResultsService {
     }
 
 }
-

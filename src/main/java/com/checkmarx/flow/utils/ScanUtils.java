@@ -10,14 +10,14 @@ import com.checkmarx.flow.dto.RepoIssue;
 import com.checkmarx.flow.dto.ScanRequest;
 import com.checkmarx.flow.exception.MachinaRuntimeException;
 import com.checkmarx.sdk.config.Constants;
-import com.checkmarx.sdk.dto.Filter;
+import com.checkmarx.sdk.dto.sast.Filter;
 import com.checkmarx.sdk.dto.ScanResults;
-import com.checkmarx.sdk.dto.ast.SCAResults;
-import com.cx.restclient.ast.dto.sast.report.FindingNode;
+import com.checkmarx.sdk.dto.sca.SCAResults;
+import com.checkmarx.sdk.dto.ast.report.FindingNode;
 import com.checkmarx.sdk.dto.cx.CxScanSummary;
 
-import com.cx.restclient.ast.dto.sca.report.Finding;
-import com.cx.restclient.ast.dto.sca.report.Package;
+import com.checkmarx.sdk.dto.sca.report.Finding;
+import com.checkmarx.sdk.dto.sca.report.Package;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.lang3.EnumUtils;
 import org.apache.commons.lang3.NotImplementedException;
@@ -91,14 +91,14 @@ public class ScanUtils {
         HashMap<String, Object> mapAdditionalDetails = new HashMap<>();
         ScanResults.XIssue.XIssueBuilder xIssueBuilder = ScanResults.XIssue.builder();
 
-        mapAdditionalDetails.put(SCAN_ID, results.getAstResults().getResults().getScanId());
+        mapAdditionalDetails.put(SCAN_ID, results.getAstResults().getScanId());
         results.setAdditionalDetails(mapAdditionalDetails);
         
         setAstScanSummary(results);
 
         Map<String, Integer> severityCount = new HashMap<>();
 
-        List<com.cx.restclient.ast.dto.sast.report.Finding> findings = results.getAstResults().getResults().getFindings();
+        List<com.checkmarx.sdk.dto.ast.report.Finding> findings = results.getAstResults().getFindings();
         findings.forEach(finding -> {
             
             xIssueBuilder.cwe("" + finding.getCweID());
@@ -148,11 +148,11 @@ public class ScanUtils {
 
     private static void setAstScanSummary( ScanResults results) {
         CxScanSummary scanSummary = new CxScanSummary();
-        scanSummary.setHighSeverity(results.getAstResults().getResults().getSummary().getHighVulnerabilityCount() );
-        scanSummary.setMediumSeverity(results.getAstResults().getResults().getSummary().getMediumVulnerabilityCount() );
-        scanSummary.setLowSeverity(results.getAstResults().getResults().getSummary().getLowVulnerabilityCount() );
+        scanSummary.setHighSeverity(results.getAstResults().getSummary().getHighVulnerabilityCount() );
+        scanSummary.setMediumSeverity(results.getAstResults().getSummary().getMediumVulnerabilityCount() );
+        scanSummary.setLowSeverity(results.getAstResults().getSummary().getLowVulnerabilityCount() );
         scanSummary.setInfoSeverity(0);
-        results.setLink(results.getAstResults().getResults().getWebReportLink());
+        results.setLink(results.getAstResults().getWebReportLink());
         results.setScanSummary( scanSummary);
         
     }
@@ -245,7 +245,7 @@ public class ScanUtils {
 
   
 
-    private static Map<String, Object> getAdditionalIssueDetails(com.cx.restclient.ast.dto.sast.report.Finding finding) {
+    private static Map<String, Object> getAdditionalIssueDetails(com.checkmarx.sdk.dto.ast.report.Finding finding) {
         Map<String, Object> additionalDetails = new HashMap<>();
          additionalDetails.put(CATEGORIES, TBD);
         additionalDetails.put(RECOMMENDED_FIX, TBD);
@@ -358,35 +358,40 @@ public class ScanUtils {
         }
     }
 
-
-  
-
     private static String getCustomScaSummaryIssueKey(ScanRequest request, ScanResults.ScaDetails scaDetails) {
-        return String.format(SCATicketingConstants.SCA_SUMMARY_CUSTOM_ISSUE_KEY, scaDetails.getFinding().getSeverity(),
-                scaDetails.getFinding().getScore(), scaDetails.getFinding().getId(),
-                scaDetails.getVulnerabilityPackage().getName(),
-                scaDetails.getVulnerabilityPackage().getVersion(), request.getRepoName(), request.getBranch());
+        String currentPackageVersion = getCurrentPackageVersion(scaDetails.getVulnerabilityPackage().getId());
+
+        return String.format(SCATicketingConstants.SCA_SUMMARY_CUSTOM_ISSUE_KEY, request.getProduct().getProduct(),
+                scaDetails.getFinding().getId(),
+                removePackageCurrentVersionFromPath(scaDetails.getVulnerabilityPackage().getId(), currentPackageVersion),
+                currentPackageVersion, request.getRepoName(), request.getBranch());
     }
 
     private static String getCustomScaSummaryIssueKeyWithoutBranch(ScanRequest request, ScanResults.ScaDetails scaDetails) {
-        return String.format(SCATicketingConstants.SCA_SUMMARY_CUSTOM_ISSUE_KEY_WITHOUT_BRANCH, scaDetails.getFinding().getSeverity(),
-                scaDetails.getFinding().getScore(), scaDetails.getFinding().getId(),
-                scaDetails.getVulnerabilityPackage().getName(),
-                scaDetails.getVulnerabilityPackage().getVersion(), request.getRepoName());
+        String currentPackageVersion = getCurrentPackageVersion(scaDetails.getVulnerabilityPackage().getId());
+
+        return String.format(SCATicketingConstants.SCA_SUMMARY_CUSTOM_ISSUE_KEY_WITHOUT_BRANCH, request.getProduct().getProduct(),
+                scaDetails.getFinding().getId(),
+                removePackageCurrentVersionFromPath(scaDetails.getVulnerabilityPackage().getId(), currentPackageVersion),
+                currentPackageVersion, request.getRepoName());
     }
 
     private static String getJiraScaSummaryIssueKey(ScanRequest request, String issuePrefix, String issuePostfix, Finding detailsFindings, Package vulnerabilityPackage) {
-        return String.format(SCATicketingConstants.SCA_JIRA_ISSUE_KEY, issuePrefix, detailsFindings.getSeverity(),
-                detailsFindings.getScore(), detailsFindings.getId(),
-                vulnerabilityPackage.getName(),
-                vulnerabilityPackage.getVersion(), request.getRepoName(), request.getBranch(), issuePostfix);
+        String currentPackageVersion = getCurrentPackageVersion(vulnerabilityPackage.getId());
+
+        return String.format(SCATicketingConstants.SCA_JIRA_ISSUE_KEY, issuePrefix,
+                detailsFindings.getId(),
+                removePackageCurrentVersionFromPath(vulnerabilityPackage.getId(), currentPackageVersion),
+                currentPackageVersion, request.getRepoName(), request.getBranch(), issuePostfix);
     }
 
     private static String getJiraScaSummaryIssueKeyWithoutBranch(ScanRequest request, String issuePrefix, String issuePostfix, Finding detailsFindings, Package vulnerabilityPackage) {
-        return String.format(SCATicketingConstants.SCA_JIRA_ISSUE_KEY_WITHOUT_BRANCH, issuePrefix, detailsFindings.getSeverity(),
-                detailsFindings.getScore(), detailsFindings.getId(),
-                vulnerabilityPackage.getName(),
-                vulnerabilityPackage.getVersion(), request.getRepoName(), issuePostfix);
+        String currentPackageVersion = getCurrentPackageVersion(vulnerabilityPackage.getId());
+
+        return String.format(SCATicketingConstants.SCA_JIRA_ISSUE_KEY_WITHOUT_BRANCH, issuePrefix,
+                detailsFindings.getId(),
+                removePackageCurrentVersionFromPath(vulnerabilityPackage.getId(), currentPackageVersion),
+                currentPackageVersion, request.getRepoName(), issuePostfix);
     }
 
 
@@ -592,5 +597,13 @@ public class ScanUtils {
         return map.keySet().stream()
                 .map(key -> key + "=" + map.get(key))
                 .collect(Collectors.joining(", ", "{", "}"));
+    }
+
+    public static String removePackageCurrentVersionFromPath(String packageName, String currentPackageVersion) {
+        return packageName.replace("-" + currentPackageVersion, "");
+    }
+
+    public static String getCurrentPackageVersion(String packageName) {
+        return StringUtils.substringAfterLast(packageName, "-");
     }
 }

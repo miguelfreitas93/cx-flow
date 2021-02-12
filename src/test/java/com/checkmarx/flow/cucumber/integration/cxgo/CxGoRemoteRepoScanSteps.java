@@ -15,9 +15,9 @@ import com.checkmarx.flow.service.RepoService;
 import com.checkmarx.jira.IJiraTestUtils;
 import com.checkmarx.jira.JiraTestUtils;
 import com.checkmarx.sdk.config.CxGoProperties;
-import com.checkmarx.sdk.dto.Filter;
+import com.checkmarx.sdk.dto.sast.Filter;
 import com.checkmarx.sdk.exception.CheckmarxException;
-import com.cx.restclient.CxGoClientImpl;
+import com.checkmarx.sdk.service.scanner.GoScanner;
 import io.cucumber.java.After;
 import io.cucumber.java.Before;
 import io.cucumber.java.en.And;
@@ -46,7 +46,7 @@ import java.util.concurrent.Callable;
 public class CxGoRemoteRepoScanSteps {
 
     private static final String JIRA_PROJECT = "CT";
-    private static final String PR_COMMIT_HASH = "5686bbd0e2b2e9957c707ccd68ac1940512b3644";
+    private static final String PR_COMMIT_HASH = "1a137e46d2b83e580aa20eedf2fdf8d7ed2073a5";
     private static final int PULL_REQUEST_ID = 1;
     private static final String GITHUB_PROJECT_NAME = "CxGo-Integration-Tests";
     private static final String GITHUB_BRANCH = "develop";
@@ -54,16 +54,18 @@ public class CxGoRemoteRepoScanSteps {
     private static final String GITLAB_BRANCH = "feature-branch";
     private static final String CXGO_PROJECT_NAME = "CxGo-Integration-Tests-develop";
     private static final String CXGO_TEAM_NAME = "\\Demo\\CxFlow";
+    private static final String PENDING_STATUS = "pending";
 
     private static final int MAX_TIME_FOR_SCAN_COMPLETED_IN_SEC = 600;
     private static final int MAX_TIME_FOR_PULL_REQUEST_UPDATE_IN_SEC = 60;
+    private static final int MAX_TIME_FOR_PULL_REQUEST_NOT_PENDING_IN_SEC = 15;
     private static final int MAX_TIME_FOR_BUG_TRACKER_UPDATE_IN_SEC = 150;
     private final GitHubProperties gitHubProperties;
     private final GitLabProperties gitLabProperties;
     private final FlowProperties flowProperties;
     private Integer oldScanId;
     private Integer cxgoProjectId;
-    private CxGoClientImpl cxGoClient;
+    private GoScanner cxGoClient;
     private CxGoProperties cxGoProperties;
     private RepoServiceMocker repoServiceMocker;
     private RepoService repoService;
@@ -81,7 +83,7 @@ public class CxGoRemoteRepoScanSteps {
     private IJiraTestUtils jiraUtils;
 
 
-    public CxGoRemoteRepoScanSteps(CxGoProperties goProperties, GitHubController gitHubController, GitHubProperties gitHubProperties, GitHubService gitHubService, CxGoClientImpl client,
+    public CxGoRemoteRepoScanSteps(CxGoProperties goProperties, GitHubController gitHubController, GitHubProperties gitHubProperties, GitHubService gitHubService, GoScanner client,
                                    JiraProperties jiraProperties, GitLabController gitLabController, GitLabProperties gitLabProperties, FlowProperties flowProperties){
         this.gitHubProperties = gitHubProperties;
         this.gitHubController = gitHubController;
@@ -190,9 +192,10 @@ public class CxGoRemoteRepoScanSteps {
     }
 
     @And("Pull request comments updated in repo and status is {}")
-    public void validatePullRequestComment(String pullRequestStatus){
+    public void validatePullRequestComment(String pullRequestStatus) throws InterruptedException {
         waitForOperationToComplete(this::scanFinished, MAX_TIME_FOR_SCAN_COMPLETED_IN_SEC);
         waitForOperationToComplete(this::pullRequestHas2CxFlowComments, MAX_TIME_FOR_PULL_REQUEST_UPDATE_IN_SEC);
+        waitForOperationToComplete(this::pullRequestNotPending, MAX_TIME_FOR_PULL_REQUEST_NOT_PENDING_IN_SEC);
 
         String status = repoServiceMocker.getPullRequestStatus();
 
@@ -203,7 +206,7 @@ public class CxGoRemoteRepoScanSteps {
         try {
             Awaitility.await()
                     .atMost(Duration.ofSeconds(secondsToWait))
-                    .pollInterval(Duration.ofSeconds(10))
+                    .pollInterval(Duration.ofSeconds(5))
                     .until(conditionEvaluator);
 
             log.info("wait completed");
@@ -226,10 +229,16 @@ public class CxGoRemoteRepoScanSteps {
         return comments.size() > 1;
     }
 
+    private boolean pullRequestNotPending() {
+        String status = repoServiceMocker.getPullRequestStatus();
+        log.info("pull request statues is: {}", status);
+        return !status.equalsIgnoreCase(PENDING_STATUS);
+    }
+
     private boolean bugTrackerUpdateWithTickets(){
         int numOfTickets = jiraUtils.getNumberOfIssuesInProject(JIRA_PROJECT);
         log.debug("found {} tickets in Jira project: {}", numOfTickets, JIRA_PROJECT);
-        return numOfTickets > 20;
+        return numOfTickets > 18;
     }
 
     private ScanRequest getBasicRequest() {

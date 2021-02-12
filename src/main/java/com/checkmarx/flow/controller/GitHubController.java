@@ -16,7 +16,7 @@ import com.checkmarx.flow.service.*;
 import com.checkmarx.flow.utils.HTMLHelper;
 import com.checkmarx.flow.utils.ScanUtils;
 import com.checkmarx.sdk.config.Constants;
-import com.checkmarx.sdk.dto.CxConfig;
+import com.checkmarx.sdk.dto.sast.CxConfig;
 import com.checkmarx.sdk.dto.filtering.FilterConfiguration;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -204,7 +204,7 @@ public class GitHubController extends WebhookController {
                     .excludeFiles(controllerRequest.getExcludeFiles())
                     .bugTracker(bt)
                     .filter(filter)
-                    .organizationName(getSubStringBefore(repository))
+                    .organizationId(getOrganizationid(repository))
                     .gitUrl(gitUrl)
                     .build();
 
@@ -341,7 +341,7 @@ public class GitHubController extends WebhookController {
                     .excludeFiles(controllerRequest.getExcludeFiles())
                     .bugTracker(bt)
                     .filter(filter)
-                    .organizationName(getSubStringBefore(repository))
+                    .organizationId(getOrganizationid(repository))
                     .gitUrl(gitUrl)
                     .build();
 
@@ -374,13 +374,8 @@ public class GitHubController extends WebhookController {
         return getSuccessMessage();
     }
 
-    /**
-     * Gets a substring before the first occurrence of the separator
-     * e.g. 'cxflowtestuser/VB_3845' will results with 'cxflowtestuser'
-     * @param repository
-     * @return
-     */
-    private String getSubStringBefore(Repository repository) {
+    private String getOrganizationid(Repository repository) {
+        // E.g. "cxflowtestuser/VB_3845" ==> "cxflowtestuser"
         return StringUtils.substringBefore(repository.getFullName(), "/");
     }
 

@@ -11,17 +11,18 @@ import com.checkmarx.flow.dto.BugTracker;
 import com.checkmarx.flow.dto.ControllerRequest;
 import com.checkmarx.flow.dto.FlowOverride;
 import com.checkmarx.flow.dto.ScanRequest;
+import com.checkmarx.flow.exception.MachinaRuntimeException;
 import com.checkmarx.flow.utils.ScanUtils;
 import com.checkmarx.sdk.config.*;
-import com.checkmarx.sdk.dto.CxConfig;
-import com.checkmarx.sdk.dto.Filter;
-import com.checkmarx.sdk.dto.Sca;
+import com.checkmarx.sdk.dto.sast.CxConfig;
+import com.checkmarx.sdk.dto.sast.Filter;
 import com.checkmarx.sdk.dto.filtering.EngineFilterConfiguration;
 import com.checkmarx.sdk.dto.filtering.FilterConfiguration;
+import com.checkmarx.sdk.dto.sca.Sca;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
@@ -267,9 +268,25 @@ public class ConfigurationOverrider {
     private void applyCxGoDynamicConfig(Map<String, String> overrideReport, ScanRequest request) {
         if (cxIntegrationsProperties.isReadMultiTenantConfiguration()) {
             String scmType = request.getRepoType().getRepository().toLowerCase();
-            String organizationName = request.getOrganizationName();
 
-            CxGoConfigFromWebService cxgoConfig = reposManagerService.getCxGoDynamicConfig(scmType, organizationName);
+            /*
+                When ADO is the SCM event trigger, the Repos-Manager expects to get 'azure' in the URL path
+                rather than 'ado'. Was decided to make the change here rather than the other services
+             */
+            if (scmType.equalsIgnoreCase(ScanRequest.Repository.ADO.getRepository())) {
+                scmType = "azure";
+            }
+
+            CxGoConfigFromWebService cxgoConfig = reposManagerService.getCxGoDynamicConfig(
+                    scmType,
+                    Optional.ofNullable(request.getOrganizationId())
+                            .orElseThrow(() -> new MachinaRuntimeException("Organization id is missing for SCM: " + request.getRepoType().getRepository())));
+
+            if (cxgoConfig == null) {
+                log.error("Multi Tenant mode: missing CxGo configuration in Repos Manager Service. Working with Multi Tenant = false ");
+                return;
+            }
+
             String className = CxGoConfigFromWebService.class.getSimpleName();
             log.info("Applying {} configuration.", className);
             Optional.ofNullable(cxgoConfig.getTeam())
@@ -279,12 +296,12 @@ public class ConfigurationOverrider {
                         log.info("Using team from {}", className);
                         overrideReport.put(TEAM_REPORT_KEY, team);
                     });
-            Optional.ofNullable(cxgoConfig.getCxgoSecret())
+            Optional.ofNullable(cxgoConfig.getCxgoToken())
                     .filter(StringUtils::isNotEmpty)
                     .ifPresent(secret -> {
-                        request.setClientSec(secret);
-                        log.info("Using client secret from {}", className);
-                        overrideReport.put("clientSecret", "<actually it's a secret>");
+                        request.setScannerApiSec(secret);
+                        log.info("Using scanner API secret from {}", className);
+                        overrideReport.put("scannerApiSec", "<actually it's a secret>");
                     });
             Optional.ofNullable(cxgoConfig.getScmAccessToken())
                     .filter(StringUtils::isNotEmpty)
@@ -393,12 +410,13 @@ public class ConfigurationOverrider {
 
         String cannotOverrideReason = null;
 
-        if (comingFromPullRequest) {
-            // Don't override bug tracker type if the scan is initiated by a pull request.
-            // Otherwise bug tracker events won't be triggered.
-            cannotOverrideReason = "scan was initiated by pull request";
-        } else if (StringUtils.isEmpty(bugTrackerNameOverride)) {
+        if (StringUtils.isEmpty(bugTrackerNameOverride)) {
             cannotOverrideReason = "no bug tracker override is defined";
+        } else if (comingFromPullRequest && !bugTrackerNameOverride.equalsIgnoreCase(BugTracker.Type.NONE.toString())) {
+            // if Bug-tracker override is 'NONE' - always override
+            // If not, don't override bug tracker type if the scan is initiated by a pull request.
+            // Otherwise bug tracker events won't be triggered.
+            cannotOverrideReason = "scan was initiated by pull request and the overriding value is not NONE";
         } else if (bugTrackerNameOverride.equalsIgnoreCase(currentBugTrackerType.toString())) {
             cannotOverrideReason = "bug tracker type in override is the same as in scan request";
         }

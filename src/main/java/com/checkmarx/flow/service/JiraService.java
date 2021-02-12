@@ -24,7 +24,7 @@ import com.checkmarx.flow.utils.ScanUtils;
 import com.checkmarx.sdk.dto.ScanResults;
 import com.google.common.collect.ImmutableMap;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -40,6 +40,7 @@ import java.net.URISyntaxException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -56,6 +57,7 @@ public class JiraService {
     private final String parentUrl;
     private final String grandParentUrl;
     private final CodeBashingService codeBashingService;
+    private final HelperService helperService;
     private Map<String, ScanResults.XIssue> nonPublishedScanResultsMap = new HashMap<>();
 
     private List<String> currentNewIssuesList = new ArrayList<>();
@@ -63,7 +65,7 @@ public class JiraService {
     private List<String> currentClosedIssuesList = new ArrayList<>();
 
     //Map used to store/retrieve custom field values
-    private Map<String, Map<String, String>> customFields = new HashMap<>();
+    private final ConcurrentHashMap<String, Map<String, String>> customFields = new ConcurrentHashMap<>();
 
     private static final String LABEL_FIELD_TYPE = "labels";
     private static final String SECURITY_FIELD_TYPE = "security";
@@ -74,12 +76,15 @@ public class JiraService {
     private static final int MAX_RESULTS_ALLOWED = 1000000;
     private static final String SEARCH_ASSIGNABLE_USER = "%s/rest/api/latest/user/assignable/search?project={projectKey}&query={assignee}";
 
-    public JiraService(JiraProperties jiraProperties, FlowProperties flowProperties, CodeBashingService codeBashingService) {
+    public JiraService(JiraProperties jiraProperties, FlowProperties flowProperties,
+                       CodeBashingService codeBashingService,
+                       HelperService helperService) {
         this.jiraProperties = jiraProperties;
         this.flowProperties = flowProperties;
         parentUrl = jiraProperties.getParentUrl();
         grandParentUrl = jiraProperties.getGrandParentUrl();
         this.codeBashingService = codeBashingService;
+        this.helperService = helperService;
     }
 
     @PostConstruct
@@ -294,7 +299,7 @@ public class JiraService {
             String fileUrl = ScanUtils.getFileUrl(request, issue.getFilename());
             summary = checkSummaryLength(summary);
 
-            issueBuilder.setSummary(request.getProduct().getProduct() + " " + summary);
+            issueBuilder.setSummary(HTMLHelper.getScanRequestIssueKeyWithDefaultProductValue(request, summary));
             issueBuilder.setDescription(this.getBody(issue, request, fileUrl));
             if (assignee != null && !assignee.isEmpty()) {
                     String accountId = getAssignee(assignee, projectKey);
@@ -936,7 +941,7 @@ public class JiraService {
                         ? String.format(JiraConstants.JIRA_ISSUE_TITLE_KEY, issuePrefix, issue.getVulnerability(), issue.getFilename(), issuePostfix)
                         : getScaDetailsIssueTitleWithoutBranchFormat(request, issuePrefix, issuePostfix, issue);
             }
-            map.put(request.getProduct().getProduct() + " " + key, issue);
+            map.put(HTMLHelper.getScanRequestIssueKeyWithDefaultProductValue(request, key), issue);
         }
         return map;
     }
@@ -944,19 +949,25 @@ public class JiraService {
     private String getScaDetailsIssueTitleFormat(ScanRequest request, String issuePrefix, String issuePostfix, ScanResults.XIssue issue) {
         ScanResults.ScaDetails scaDetails = issue.getScaDetails().get(0);
 
-        return String.format(SCATicketingConstants.SCA_JIRA_ISSUE_KEY, issuePrefix, scaDetails.getFinding().getSeverity(),
-        scaDetails.getFinding().getScore(), scaDetails.getFinding().getId(),
-        scaDetails.getVulnerabilityPackage().getName(),
-        scaDetails.getVulnerabilityPackage().getVersion(), request.getRepoName(), request.getBranch(), issuePostfix);
+        String currentPackageVersion = ScanUtils.getCurrentPackageVersion(scaDetails.getVulnerabilityPackage().getId());
+        String packagePathWithoutCurrentVersion = ScanUtils.removePackageCurrentVersionFromPath(scaDetails.getVulnerabilityPackage().getId(), currentPackageVersion);
+
+        return String.format(SCATicketingConstants.SCA_JIRA_ISSUE_KEY, issuePrefix,
+                scaDetails.getFinding().getId(),
+                packagePathWithoutCurrentVersion,
+                currentPackageVersion, request.getRepoName(), request.getBranch(), issuePostfix);
     }
 
     private String getScaDetailsIssueTitleWithoutBranchFormat(ScanRequest request, String issuePrefix, String issuePostfix, ScanResults.XIssue issue) {
         ScanResults.ScaDetails scaDetails = issue.getScaDetails().get(0);
 
-        return String.format(SCATicketingConstants.SCA_JIRA_ISSUE_KEY_WITHOUT_BRANCH, issuePrefix, scaDetails.getFinding().getSeverity(),
-                scaDetails.getFinding().getScore(), scaDetails.getFinding().getId(),
-                scaDetails.getVulnerabilityPackage().getName(),
-                scaDetails.getVulnerabilityPackage().getVersion(), request.getRepoName(), issuePostfix);
+        String currentPackageVersion = ScanUtils.getCurrentPackageVersion(scaDetails.getVulnerabilityPackage().getId());
+        String packagePathWithoutCurrentVersion = ScanUtils.removePackageCurrentVersionFromPath(scaDetails.getVulnerabilityPackage().getId(), currentPackageVersion);
+
+        return String.format(SCATicketingConstants.SCA_JIRA_ISSUE_KEY_WITHOUT_BRANCH, issuePrefix,
+                scaDetails.getFinding().getId(),
+                packagePathWithoutCurrentVersion,
+                currentPackageVersion, request.getRepoName(), issuePostfix);
     }
 
     private String getBody(ScanResults.XIssue issue, ScanRequest request, String fileUrl) {
@@ -1117,11 +1128,12 @@ public class JiraService {
             ScanResults.ScaDetails scaDetails = s.stream().findAny().get();
 
             scaDetailsMap.put("Vulnerability ID", scaDetails.getFinding().getId());
-            scaDetailsMap.put("Package Name", scaDetails.getVulnerabilityPackage().getName());
+            String currentPackageVersion = ScanUtils.getCurrentPackageVersion(scaDetails.getVulnerabilityPackage().getId());
+            scaDetailsMap.put("Package Name", ScanUtils.removePackageCurrentVersionFromPath(scaDetails.getVulnerabilityPackage().getId(), currentPackageVersion));
             scaDetailsMap.put("Severity", scaDetails.getFinding().getSeverity().name());
             scaDetailsMap.put("CVSS Score", String.valueOf(scaDetails.getFinding().getScore()));
             scaDetailsMap.put("Publish Date", scaDetails.getFinding().getPublishDate());
-            scaDetailsMap.put("Current Package Version", scaDetails.getVulnerabilityPackage().getVersion());
+            scaDetailsMap.put("Current Package Version", currentPackageVersion);
             Optional.ofNullable(scaDetails.getFinding().getFixResolutionText()).ifPresent(f ->
                 scaDetailsMap.put("Remediation Upgrade Recommendation", f)
 
@@ -1170,6 +1182,10 @@ public class JiraService {
 
         codeBashingService.createLessonsMap();
         getAndModifyRequestApplication(request);
+
+        String jiraProjectKey = determineJiraProjectKey(request);
+        request.getBugTracker().setProjectKey(jiraProjectKey);
+
         loadCustomFields(request.getBugTracker().getProjectKey(), request.getBugTracker().getIssueType());
         if (this.jiraProperties.isChild()) {
             ScanRequest parent = new ScanRequest(request);
@@ -1254,6 +1270,30 @@ public class JiraService {
         setCurrentClosedIssuesList(closedIssues);
         
         return ticketsMap;
+    }
+
+    /**
+     * Determines effective jira project key that can be used by Bug tracker.
+     * @return project key based on a scan request or a Groovy script (if present).
+     */
+    public String determineJiraProjectKey(ScanRequest request) {
+        String jiraProjectKey = request.getBugTracker().getProjectKey();
+
+        log.info("Determining jira project key for bug tracker.");
+        String nameOverride = tryGetJiraProjectKeyFromScript(request);
+        if (StringUtils.isNotEmpty(nameOverride) && !nameOverride.equals(jiraProjectKey)) {
+            log.info("Jira Project key override is present. Using the override: {}.",
+                      nameOverride);
+            jiraProjectKey = nameOverride;
+        } else {
+            log.info("Jira Project key override isn't present. Using the default: {}.",
+                     jiraProjectKey);
+        }
+        return jiraProjectKey;
+    }
+
+    private String tryGetJiraProjectKeyFromScript(ScanRequest request) {
+        return helperService.getJiraProjectKey(request);
     }
 
     public List<String> getCurrentNewIssuesList() {

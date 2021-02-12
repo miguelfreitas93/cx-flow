@@ -12,10 +12,11 @@ import com.checkmarx.jira.JiraTestUtils;
 import com.checkmarx.sdk.config.CxProperties;
 import com.checkmarx.sdk.config.ScaProperties;
 import com.checkmarx.sdk.exception.CheckmarxException;
-import com.checkmarx.sdk.service.CxClient;
+import com.checkmarx.sdk.service.scanner.CxClient;
 import io.cucumber.java.After;
 import io.cucumber.java.Before;
 import io.cucumber.java.PendingException;
+import io.cucumber.java.en.And;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
@@ -226,5 +227,14 @@ public class SastCliSteps {
         flowProperties.setThresholds(null);
         scaProperties.setThresholdsSeverity(null);
         scaProperties.setThresholdsScore(null);
+    }
+
+    @And("and enabledZipScan is set to {string}")
+    public void andEnabledZipScanIsSetTo(String enabledZipScan) {
+         if(enabledZipScan.equals("true")){
+             cxProperties.setEnabledZipScan(true);
+         }else if(enabledZipScan.equals("false")){
+             cxProperties.setEnabledZipScan(false);
+         }
     }
 }

@@ -16,7 +16,7 @@ import com.checkmarx.flow.utils.HTMLHelper;
 import com.checkmarx.flow.utils.ScanUtils;
 import com.checkmarx.sdk.config.Constants;
 
-import com.checkmarx.sdk.dto.CxConfig;
+import com.checkmarx.sdk.dto.sast.CxConfig;
 import com.checkmarx.sdk.dto.filtering.FilterConfiguration;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
@@ -142,7 +142,7 @@ public class GitLabController extends WebhookController {
                     .excludeFiles(controllerRequest.getExcludeFiles())
                     .bugTracker(bt)
                     .filter(filter)
-                    .organizationName(getProjectNamespace(proj))
+                    .organizationId(getOrganizationId(proj))
                     .gitUrl(gitUrl)
                     .build();
 
@@ -245,7 +245,7 @@ public class GitLabController extends WebhookController {
                     .excludeFiles(controllerRequest.getExcludeFiles())
                     .bugTracker(bt)
                     .filter(filter)
-                    .organizationName(getProjectNamespace(proj))
+                    .organizationId(getOrganizationId(proj))
                     .gitUrl(gitUrl)
                     .build();
 
@@ -284,8 +284,13 @@ public class GitLabController extends WebhookController {
         return getSuccessMessage();
     }
 
-    private String getProjectNamespace(Project proj) {
-        return proj.getNamespace().replace(" ","_");
+    private String getOrganizationId(Project proj) {
+        // Cannot use the 'namespace' field here, because it's for display only and won't work in GitLab API calls.
+        // pathWithNamespace may look like the following, depending on project location:
+        //      my-username/personal-project
+        //      my-group/sample-project
+        //      my-group/my-subgroup/sample-project
+        return StringUtils.substringBefore(proj.getPathWithNamespace(), "/");
     }
 
     private String setUserEmail(@RequestBody PushEvent body, BugTracker.Type bugType, Project proj, ScanRequest request, List<String> emails, String commitEndpoint) {
@@ -307,7 +312,7 @@ public class GitLabController extends WebhookController {
     }
 
     private void setMergeEndPointUri(ObjectAttributes objectAttributes, Project proj, ScanRequest request) {
-        String mergeEndpoint = scmConfigOverrider.determineConfigApiUrl(properties, request).concat(GitLabService.MERGE_NOTE_PATH);
+        String mergeEndpoint = scmConfigOverrider.determineConfigApiUrl(properties, request).concat(GitLabService.MERGE_NOTES_PATH);
         mergeEndpoint = mergeEndpoint.replace("{id}", proj.getId().toString());
         mergeEndpoint = mergeEndpoint.replace("{iid}", objectAttributes.getIid().toString());
         request.setMergeNoteUri(mergeEndpoint);
